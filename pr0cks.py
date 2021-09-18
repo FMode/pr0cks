@@ -15,7 +15,7 @@
 # along with pr0cks.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
-import StringIO
+import io
 import time
 import struct
 import os
@@ -36,13 +36,14 @@ DNS_CACHE_SIZE=1000
 def display(msg):
     msg=msg.strip()
     if msg.startswith("[-]"):
-        print "\033[31m[-]\033[0m"+msg[3:]
+        print("\033[31m[-]\033[0m"+msg[3:])
     elif msg.startswith("[+]"):
-        print "\033[32m[+]\033[0m"+msg[3:]
+        print("\033[32m[+]\033[0m"+msg[3:])
     elif msg.startswith("[i]"):
-        print "\033[1;30m[i]\033[0m"+msg[3:]
+        print("\033[1;30m[i]\033[0m"+msg[3:])
     else:
-        print msg
+        print(msg)
+    sys.stdout.flush()
 
 try:
     from dnslib import DNSRecord, QTYPE
