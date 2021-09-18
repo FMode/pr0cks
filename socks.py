@@ -47,6 +47,7 @@ import sys
 PROXY_TYPE_SOCKS4 = 1
 PROXY_TYPE_SOCKS5 = 2
 PROXY_TYPE_HTTP = 3
+PROXY_TYPE_PAC = 4
 
 _defaultproxy = None
 _orgsocket = socket.socket
@@ -123,6 +124,7 @@ class socksocket(socket.socket):
 			self.__proxy = (None, None, None, None, None, None)
 		self.__proxysockname = None
 		self.__proxypeername = None
+		self._pac = None
 
 	def __recvall(self, count):
 		"""__recvall(count) -> data
@@ -376,6 +378,19 @@ class socksocket(socket.socket):
 				portnum = 8080
 			_orgsocket.connect(self,(self.__proxy[1], portnum))
 			self.__negotiatehttp(destpair[0], destpair[1])
+		elif self.__proxy[0] == PROXY_TYPE_PAC:
+			if self._pac==None:
+				import pypac
+				self._pac=pypac.get_pac(url=self.__proxy[1])
+			t=self._pac.find_proxy_for_url(destpair[0], destpair[0]).split(' ')
+			if t[0]=="PROXY":
+				server, port= t[1].split(":")
+				_orgsocket.connect(self,(server, port))
+				self.__negotiatehttp(destpair[0], destpair[1])
+			elif t[0]=="DIRECT":
+				_orgsocket.connect(self, (destpair[0], destpair[1]))
+			else:
+				raise GeneralProxyError((5, _generalerrors[5]))
 		elif self.__proxy[0] == None:
 			_orgsocket.connect(self, (destpair[0], destpair[1]))
 		else:

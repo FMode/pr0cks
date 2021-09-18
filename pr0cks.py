@@ -218,7 +218,7 @@ class Pr0cks5Server(asyncore.dispatcher):
 args=None
 if __name__=='__main__':
     parser = argparse.ArgumentParser(prog='procks', description="Transparent SOCKS5/SOCKS4/HTTP_CONNECT Proxy")
-    parser.add_argument('--proxy', default="SOCKS5:127.0.0.1:1080", help="proxytype:ip:port to forward our connections through. proxytype can be SOCKS5, SOCKS4 or HTTP")
+    parser.add_argument('--proxy', default="SOCKS5:127.0.0.1:1080", help="proxytype:ip:port to forward our connections through. proxytype can be SOCKS5, SOCKS4, HTTP or PAC")
     parser.add_argument('-p', '--port', type=int, default=10080, help="port to bind the transparent proxy on the local socket (default 10080)")
     parser.add_argument('-n', '--nat', action='store_true', help="set bind address to 0.0.0.0 to make pr0cks work from a netfilter FORWARD rule instead of OUTPUT")
     parser.add_argument('-v', '--verbose', action="store_true", help="print all the connections requested through the proxy")
@@ -251,14 +251,22 @@ if __name__=='__main__':
         udp_server.start_thread()
         display("[+] DNS server started on %s:%s forwarding all DNS trafic to %s:%s using TCP"%(bind_address, args.dns_port, dns_srv, dns_port))
 
-    ptype,proxy_addr,proxy_port=args.proxy.split(":",2)
+    
     t=None
+    ptype,proxy_addr=args.proxy.split(":",1)
     if ptype.upper()=="SOCKS5":
+        ptype,proxy_addr,proxy_port=args.proxy.split(":",2)
         t=socks.PROXY_TYPE_SOCKS5
     elif ptype.upper()=="SOCKS4":
+        ptype,proxy_addr,proxy_port=args.proxy.split(":",2)
         t=socks.PROXY_TYPE_SOCKS4
     elif ptype.upper()=="HTTP":
+        ptype,proxy_addr,proxy_port=args.proxy.split(":",2)
         t=socks.PROXY_TYPE_HTTP
+    elif ptype.upper()=="PAC":
+        t=socks.PROXY_TYPE_PAC
+        proxy_port=0
+        
     else:
         display("[-] --proxy : unknown proxy type %s"%ptype)
         exit(1)
