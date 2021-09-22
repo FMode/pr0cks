@@ -31,7 +31,33 @@ logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 import binascii
 from collections import OrderedDict
 import ipaddress
-import pypac
+#import pypac
+import pypac as _pypac
+
+class PACFile():
+	def __init__(self,pacfile):
+		self.cache=dict()
+		self.pacfile=pacfile
+		self.lock=threading.Lock()
+	
+	def find_proxy_for_url(self,url, host):
+		e=self.cache.get(url)
+		if e==None:
+			with self.lock:
+				ret=self.pacfile.find_proxy_for_url(url, host)
+			self.cache[url]=ret
+			return ret
+		else:
+			return self.cache[url]
+		
+
+class pypac():
+	pacfile=None
+	@staticmethod
+	def get_pac(*args, **kwargs):	
+		pacfile= PACFile(_pypac.get_pac(*args, **kwargs))
+		return pacfile
+
 
 import dns.resolver
 dns_resolver = dns.resolver.Resolver()
