@@ -25,6 +25,7 @@ import socks
 import argparse
 import traceback
 import logging
+import threading
 from socks import set_default_proxy
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 import binascii
@@ -39,6 +40,7 @@ dns_resolver = dns.resolver.Resolver()
 #dns_resolver.search=["mydomain.de","mydomain2.de"]
 
 dnslib_imported=False
+dns_cache_lock = threading.Lock()
 dns_cache=dict()
 dns_cache[0]="localhost"
 dns_cache[53]="dns stub resolver"
@@ -79,6 +81,7 @@ try:
 		def get_reply(self,data):
 			global dns_cache
 			global dns_cache_rev
+			global dns_cache_lock
 			global args
 			global pac
 			host,port = self.server.resolver.address,self.server.resolver.port
@@ -124,19 +127,20 @@ try:
 						return data
 					else:
 						#print("------------reply!!!--------------")
-						reply=request.reply()	
-						d=dns_cache_rev.get(domain)
-						i=0
-						if d==None:
-							i=len(dns_cache)
-							if i in dns_cache:
-								i=i+1
-							if args.verbose:
-								display("[i] dns_cache entry created: %s - %s"%(domain,str(ipaddress.IPv4Address(i)).replace("0",args.fake_net_nr,1)))
-							dns_cache_rev[domain]=i
-							dns_cache[i]=domain
-						else:
-							i=d
+						reply=request.reply()
+						with dns_cache_lock:
+							d=dns_cache_rev.get(domain)
+							i=0
+							if d==None:
+								i=len(dns_cache)
+								if i in dns_cache:
+									i=i+1
+								if args.verbose:
+									display("[i] dns_cache entry created: %s - %s"%(domain,str(ipaddress.IPv4Address(i)).replace("0",args.fake_net_nr,1)))
+								dns_cache_rev[domain]=i
+								dns_cache[i]=domain
+							else:
+								i=d
 						if i==0:
 							display("[i] already replied with IP from DNS!")
 							return data
@@ -262,12 +266,13 @@ class Socks5Conn(asyncore.dispatcher):
 	def __init__(self, sock=None, map=None, conn=True, verbose=False, pac_tuple=None):
 		if pac_tuple==None:
 			dns_cache=None
+			dns_cache_lock=None
 			pac=None
 			username=None
 			password=None
 			fake_net_nr=""
 		else:
-			(dns_cache, pac, username, password, fake_net_nr)=pac_tuple
+			(dns_cache, dns_cache_lock, pac, username, password, fake_net_nr)=pac_tuple
 		self.out_buffer=b""
 		self.verbose=verbose
 		self.allsent=False
@@ -278,7 +283,12 @@ class Socks5Conn(asyncore.dispatcher):
 			address = "%d.%d.%d.%d" % (a1, a2, a3, a4)
 			if dns_cache != None:
 				ipaddr=address
-				address=dns_cache[int(ipaddress.IPv4Address(address.replace(fake_net_nr,"0",1)))]
+				if fake_net_nr in address:
+					n=int(ipaddress.IPv4Address(address.replace(fake_net_nr,"0",1)))
+					with dns_cache_lock:
+						elem=dns_cache.get(n)
+					if elem!=None:
+						address=elem					
 				t=pac.find_proxy_for_url(address, address).split(' ')
 				if t[0]=="PROXY":
 					p_ip, p_port= t[1].split(":")
@@ -463,7 +473,7 @@ if __name__=='__main__':
 
 
 	try:
-		server = Pr0cks5Server(bind_address, args.port, verbose=args.verbose, pac_tuple=(dns_cache, pac, args.username, args.password, args.fake_net_nr))
+		server = Pr0cks5Server(bind_address, args.port, verbose=args.verbose, pac_tuple=(dns_cache, dns_cache_lock,pac, args.username, args.password, args.fake_net_nr))
 
 		asyncore.loop()
 	except KeyboardInterrupt:
